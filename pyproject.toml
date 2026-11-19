@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "runbook-py"
+dynamic = ["version"]
+description = "Run a JSON plan of shell commands and get a complete JSON report back (rc, stdout, stderr, duration). Built for humans and AI assistants working together on servers."
+readme = "README.md"
+requires-python = ">=3.6"
+license = {text = "MIT"}
+authors = [{name = "Emmanuel Bocquet", email = "manu@unixdev.ca"}]
+keywords = ["runbook", "sysadmin", "shell", "automation", "devops", "json", "llm", "ops"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/OWNER/runbook-py"
+Source = "https://github.com/OWNER/runbook-py"
+Issues = "https://github.com/OWNER/runbook-py/issues"
+Changelog = "https://github.com/OWNER/runbook-py/blob/main/CHANGELOG.md"
+
+[project.scripts]
+runbook = "runbook_py.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "runbook_py.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]

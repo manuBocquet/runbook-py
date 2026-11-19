@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/OWNER/runbook-py/main/schema/runbook-plan.schema.json",
+  "name": "per-host-vars",
+  "description": "One plan for several servers: host-specific values come from [vars] in each server's .runbook.ini or from --var.",
+  "vars": { "service": "ssh", "backup_dir": "/root/backups" },
+  "commands": [
+    { "id": "mkdir", "cmd": "mkdir -p {{backup_dir}}", "skip_if": "test -d {{backup_dir}}", "dangerous": true },
+    { "id": "archive", "cmd": "tar czf {{backup_dir}}/etc-{{host}}-{{timestamp}}.tgz /etc 2>/dev/null; ls -t {{backup_dir}} | head -1",
+      "capture": "ARCHIVE", "dangerous": true },
+    { "id": "size", "cmd": "du -h \"{{backup_dir}}/$ARCHIVE\"", "only_if": "archive" },
+    { "id": "service", "cmd": "systemctl is-active {{service}}", "expect_rc": [0, 3] }
+  ]
+}

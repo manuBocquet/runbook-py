@@ -1,0 +1,41 @@
+name: Publish to PyPI
+
+# Create a GitHub release (tag vX.Y.Z) to publish. PyPI side: add a "trusted publisher" for this
+# repository, workflow publish.yml, environment pypi (https://docs.pypi.org/trusted-publishers/).
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build twine pytest jsonschema
+      - run: python -m pytest -q
+      - name: Tag matches the package version
+        run: |
+          version=$(python -c "import sys; sys.path.insert(0, 'src'); import runbook_py; print(runbook_py.__version__)")
+          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != v$version"; exit 1; }
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write      # Trusted Publishing: no API token stored anywhere
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

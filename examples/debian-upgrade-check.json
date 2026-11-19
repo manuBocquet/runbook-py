@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/OWNER/runbook-py/main/schema/runbook-plan.schema.json",
+  "name": "debian-upgrade-check",
+  "description": "Refresh the package index, list pending upgrades, then upgrade after confirmation.",
+  "requires": { "root": true, "os": ["debian", "ubuntu"], "commands": ["apt-get"] },
+  "defaults": { "timeout": 600, "env": { "DEBIAN_FRONTEND": "noninteractive", "LC_ALL": "C" } },
+  "redact": ["(?i)(password|passwd|secret|token)\\s*[:=]\\s*\\S+"],
+  "commands": [
+    { "id": "free_space", "description": "At least 2 GB free on /",
+      "cmd": "df -h /; [ $(df --output=avail -k / | tail -1) -gt 2097152 ]" },
+    { "id": "update", "cmd": "apt-get update", "dangerous": true, "retries": 2, "retry_delay": 15 },
+    { "id": "pending", "cmd": "apt list --upgradable 2>/dev/null | tail -n +2", "only_if": "update" },
+    { "id": "upgrade", "description": "Keeps local versions of modified config files",
+      "cmd": "apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold dist-upgrade",
+      "dangerous": true, "only_if": "update", "timeout": 3600 },
+    { "id": "reboot_needed", "cmd": "[ -f /var/run/reboot-required ] && cat /var/run/reboot-required || echo 'no reboot needed'",
+      "stop_on_error": false }
+  ]
+}

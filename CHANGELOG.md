@@ -1,0 +1,16 @@
+# Changelog
+
+## 1.0.0 — 2026-11-19
+
+First public release, from the internal `runbook.py` script used for a Proxmox VE 8 → 9 migration.
+
+- Plans in JSON, one JSON report per run, rewritten after each command.
+- English console and prompts: `Run? [y/N/a/q]`.
+- `.runbook.ini` configuration (`/etc`, `~`, `./`, `$RUNBOOK_CONFIG`, `--config`) with a `[vars]` section.
+- `{{variables}}`: built-ins, plan `vars`, config `[vars]`, `--var`.
+- `capture`, `skip_if`, `only_if` with several ids, `retries`, `stdin`, `requires`.
+- `--from`, `--only`, `--skip`, `--resume previous.result.json`.
+- Live output while capturing, ANSI and carriage-return clean-up, head + tail truncation.
+- Lock file against parallel runs; SIGTERM handled like Ctrl-C.
+- Subcommands: `run` (default), `validate`, `report` (text / Markdown), `schema`, `init-config`.
+- Exit codes: 0, 1, 2, 3 (requirements), 4 (locked), 130 (interrupted).

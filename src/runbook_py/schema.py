@@ -1,0 +1,76 @@
+"""JSON Schema of a runbook plan (draft-07), printed by `runbook schema`."""
+
+from . import __version__
+
+_ID = {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}
+_VAR = {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+
+_COMMON = {
+    "timeout": {"type": ["number", "null"], "minimum": 0,
+                "description": "Seconds before the command is killed (its process group). 0 or null = no limit. "
+                               "Default: [runbook] timeout from .runbook.ini, else 60."},
+    "stop_on_error": {"type": "boolean", "default": True,
+                      "description": "Stop the plan (remaining commands are skipped) if this command fails, times out or cannot start."},
+    "expect_rc": {"oneOf": [{"type": "integer"}, {"type": "array", "items": {"type": "integer"}, "minItems": 1}],
+                  "default": [0], "description": "Exit codes counted as success."},
+    "shell": {"type": "boolean", "default": True,
+              "description": "true: 'cmd' is a string run with bash -c (or sh -c). false: 'cmd' is an argv list, no shell."},
+    "cwd": {"type": ["string", "null"], "description": "Working directory. {{variables}} allowed."},
+    "env": {"type": "object", "additionalProperties": {"type": ["string", "number"]},
+            "description": "Extra environment variables, merged with defaults.env. {{variables}} allowed in values."},
+    "dangerous": {"type": "boolean", "default": False,
+                  "description": "The command changes the system: with --confirm dangerous (the default) the operator is asked first."},
+    "retries": {"type": "integer", "minimum": 0, "default": 0, "description": "Extra attempts after a failure or a timeout."},
+    "retry_delay": {"type": "number", "minimum": 0, "default": 5, "description": "Seconds between attempts."},
+    "stream": {"type": ["boolean", "null"], "description": "Force live output on (true) or off (false) for this command."},
+}
+
+_COMMAND = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["cmd"],
+    "properties": dict(_COMMON, **{
+        "id": dict(_ID, description="Unique id, used by only_if, --from, --only, --skip and the report. Default: cmdN."),
+        "cmd": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "array", "items": {"type": "string"}, "minItems": 1}],
+                "description": "Shell string (shell=true) or argv list (shell=false). {{variables}} allowed."},
+        "description": {"type": "string", "description": "Why the command is there; shown at confirmation and in the report."},
+        "only_if": {"oneOf": [_ID, {"type": "array", "items": _ID}],
+                    "description": "Run only if these EARLIER commands ended ok; otherwise skipped."},
+        "skip_if": {"type": "string", "description": "Shell test run first: exit code 0 means the work is already done, so the command is skipped (idempotence)."},
+        "capture": dict(_VAR, description="Store this command's stdout (trailing newlines removed) as {{name}} for later commands, "
+                                          "also exported to their environment as $name."),
+        "stdin": {"type": "string", "description": "Text written to the command's standard input (otherwise stdin is /dev/null)."},
+    }),
+}
+
+PLAN_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/OWNER/runbook-py/blob/main/schema/runbook-plan.schema.json",
+    "title": "runbook-py plan",
+    "description": "A plan of shell commands executed in order by runbook-py %s; each command's rc, stdout, stderr "
+                   "and duration end up in a JSON report." % __version__,
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["commands"],
+    "properties": {
+        "$schema": {"type": "string"},
+        "schema_version": {"const": 1},
+        "name": {"type": "string", "description": "Plan name, used in the result file name."},
+        "description": {"type": "string"},
+        "defaults": {"type": "object", "additionalProperties": False, "properties": _COMMON,
+                     "description": "Default values for every command."},
+        "vars": {"type": "object", "propertyNames": _VAR, "additionalProperties": {"type": ["string", "number"]},
+                 "description": "Variables used as {{name}}. Overridden by [vars] in .runbook.ini, then by --var NAME=VALUE. "
+                                "Built-ins: host, fqdn, user, date, time, timestamp, plan_name."},
+        "redact": {"type": "array", "items": {"type": "string"},
+                   "description": "Regexes masked as [REDACTED] in the report (stdout, stderr, commands, variables)."},
+        "requires": {"type": "object", "additionalProperties": False, "properties": {
+            "root": {"type": "boolean", "description": "Abort unless run as root."},
+            "os": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
+                   "description": "Accepted /etc/os-release ID or ID_LIKE values, e.g. [\"debian\", \"rhel\"]."},
+            "commands": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
+                         "description": "Binaries that must be in PATH."},
+        }, "description": "Checked before anything runs; on failure nothing is executed (exit code 3)."},
+        "commands": {"type": "array", "minItems": 1, "items": {"oneOf": [{"type": "string"}, _COMMAND]}},
+    },
+}

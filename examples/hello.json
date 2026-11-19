@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/OWNER/runbook-py/main/schema/runbook-plan.schema.json",
+  "name": "hello",
+  "description": "A first plan: read-only commands, one expected failure, one capture.",
+  "defaults": { "timeout": 30, "stop_on_error": false },
+  "commands": [
+    { "id": "whoami", "cmd": "id; hostname; uptime" },
+    { "id": "disk", "cmd": "df -h /" },
+    { "id": "kernel", "cmd": "uname -r", "capture": "KERNEL" },
+    { "id": "use_capture", "cmd": "echo \"running kernel {{KERNEL}} on {{host}}\"", "only_if": "kernel" },
+    { "id": "expected_fail", "cmd": "ls /does-not-exist", "expect_rc": [0, 2] }
+  ]
+}
