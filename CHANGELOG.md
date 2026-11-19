@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Tests: runbook subprocesses run without a controlling terminal, so `make test` from a terminal no longer waits at a confirmation prompt.
+- Correction du processus de release
+
 ## 1.0.2 — 2026-11-19
 
 - Development: Makefile (test, build, bump-*, release) and bump-my-version configuration.

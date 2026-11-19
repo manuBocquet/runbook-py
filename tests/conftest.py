@@ -28,8 +28,11 @@ class Runbook(object):
 
     def __call__(self, *args, **kw):
         cmd = [sys.executable, "-m", "runbook_py"] + [str(a) for a in args]
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env,
-                              cwd=str(self.tmp), universal_newlines=True, timeout=kw.get("timeout", 60))
+        # start_new_session: no controlling terminal, so a confirmation prompt can never
+        # wait for an answer on the terminal of whoever runs the tests (it is declined).
+        proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              env=self.env, cwd=str(self.tmp), universal_newlines=True,
+                              timeout=kw.get("timeout", 60), start_new_session=True)
         return proc
 
     def run(self, data, *extra):
