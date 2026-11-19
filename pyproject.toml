@@ -43,3 +43,21 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
+
+[tool.bumpversion]
+current_version = "1.0.1"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+message = "Release {new_version}"
+allow_dirty = false
+
+[[tool.bumpversion.files]]
+filename = "src/runbook_py/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "## Unreleased"
+replace = "## Unreleased\n\n## {new_version} — {now:%Y-%m-%d}"
