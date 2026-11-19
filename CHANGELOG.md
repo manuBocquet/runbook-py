@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Development: Makefile (test, build, bump-*, release) and bump-my-version configuration.
+
 ## 1.0.1 — 2026-11-19
 
 - The plan schema no longer embeds the package version; tests always import src/.
