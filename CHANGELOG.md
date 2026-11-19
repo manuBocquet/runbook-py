@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.2 — 2026-11-19
+
 - Development: Makefile (test, build, bump-*, release) and bump-my-version configuration.
 
 ## 1.0.1 — 2026-11-19
