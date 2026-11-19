@@ -47,7 +47,6 @@ bump-minor: changelog-check test ## Version x.Y+1.0 : commit + tag v…
 bump-major: changelog-check test ## Version X+1.0.0 : commit + tag v…
 	bump-my-version bump major
 
-release: ## Pousse commit + tag et crée la release GitHub (publie sur PyPI)
+release: ## Pousse commit + tag vX.Y.Z : le workflow publie sur PyPI
 	git push --follow-tags
-	gh release create v$(VERSION) --title "v$(VERSION)" \
-	  --notes "$$(awk '/^## $(VERSION) /{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
+	@echo "Publication : https://github.com/manuBocquet/runbook-py/actions/workflows/publish.yml"
