@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.3 — 2026-11-19
+
 - Tests: runbook subprocesses run without a controlling terminal, so `make test` from a terminal no longer waits at a confirmation prompt.
 - Correction du processus de release
 
