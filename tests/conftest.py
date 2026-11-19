@@ -8,6 +8,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 
+# Tests always use the code in src/, never an installed runbook-py.
+sys.path.insert(0, SRC)
+
 
 class Runbook(object):
     def __init__(self, tmp_path):

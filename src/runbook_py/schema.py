@@ -45,10 +45,10 @@ _COMMAND = {
 
 PLAN_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://github.com/OWNER/runbook-py/blob/main/schema/runbook-plan.schema.json",
+    "$id": "https://github.com/manuBocquet/runbook-py/blob/main/schema/runbook-plan.schema.json",
     "title": "runbook-py plan",
-    "description": "A plan of shell commands executed in order by runbook-py %s; each command's rc, stdout, stderr "
-                   "and duration end up in a JSON report." % __version__,
+    "description": "A plan of shell commands executed in order by runbook-py; each command's rc, stdout, stderr "
+                   "and duration end up in a JSON report.",
     "type": "object",
     "additionalProperties": False,
     "required": ["commands"],

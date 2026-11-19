@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/OWNER/runbook-py/main/schema/runbook-plan.schema.json",
+  "$schema": "https://raw.githubusercontent.com/manuBocquet/runbook-py/main/schema/runbook-plan.schema.json",
   "name": "debian-upgrade-check",
   "description": "Refresh the package index, list pending upgrades, then upgrade after confirmation.",
   "requires": { "root": true, "os": ["debian", "ubuntu"], "commands": ["apt-get"] },

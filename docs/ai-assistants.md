@@ -56,7 +56,7 @@ Rules for plans:
 autocomplete a plan that starts with:
 
 ```json
-{ "$schema": "https://raw.githubusercontent.com/OWNER/runbook-py/main/schema/runbook-plan.schema.json" }
+{ "$schema": "https://raw.githubusercontent.com/manuBocquet/runbook-py/main/schema/runbook-plan.schema.json" }
 ```
 
 `runbook validate` goes further than the schema: it checks that `only_if` names earlier commands

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-11-19
+
+- The plan schema no longer embeds the package version; tests always import src/.
+- Project links (PyPI, schema $id, examples) point to https://github.com/manuBocquet/runbook-py.
+
 ## 1.0.0 — 2026-11-19
 
 First public release, from the internal `runbook.py` script used for a Proxmox VE 8 → 9 migration.

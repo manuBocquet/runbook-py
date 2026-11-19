@@ -1,5 +1,7 @@
 # runbook-py
 
+[![Python](https://img.shields.io/badge/Python-v3-lightgrey?logo=python&logoColor=fff&labelColor=3776AB)](#)
+
 **Run a JSON plan of shell commands. Get one JSON report back.**
 
 `runbook` executes the commands of a plan in order and records, for each one, the exit code, stdout,
