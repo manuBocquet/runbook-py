@@ -6,4 +6,6 @@ dist/
 .pytest_cache/
 .venv/
 *.result.json
+*.patch
 README
+UPDATE.md
