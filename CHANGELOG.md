@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 — 2026-11-25
+
 - Remote execution over SSH: a plan-level `"remote"` block (`host`, `user`, `port`, `identity_file`,
   `ssh_options`, `shell`, `connect_timeout`) and the `--remote [USER@]HOST`, `--port`, `-i/--identity`,
   `--ssh-option`, `--local` options. Python is not needed on the target: each command is sent as a
