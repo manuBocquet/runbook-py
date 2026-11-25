@@ -10,6 +10,7 @@ import sys
 from . import __version__
 from .config import COLOR_MODES, CONFIRM_MODES, SAMPLE, ConfigError, load_config
 from .plan import NAME_RE, PlanError, builtin_vars, check_variables, load_plan, parse_cli_vars, render
+from .remote import render_remote, resolve_remote
 from .report import load_result, render_report
 from .runner import EXIT_INTERRUPTED, EXIT_INVALID, EXIT_LOCKED, Lock, Runner
 from .schema import PLAN_SCHEMA
@@ -28,6 +29,14 @@ def _add_plan_options(parser):
                         help="set a {{variable}} (repeatable; overrides the plan and .runbook.ini)")
     parser.add_argument("--config", metavar="FILE", help="extra .runbook.ini read last (also $RUNBOOK_CONFIG)")
     parser.add_argument("--no-config", action="store_true", help="ignore /etc, ~ and ./ .runbook.ini files")
+    remote = parser.add_argument_group("remote execution over SSH (Python is not needed on the target)")
+    remote.add_argument("--remote", metavar="[USER@]HOST", help="run the commands on HOST through ssh "
+                                                               "(overrides the plan's remote.host / remote.user)")
+    remote.add_argument("--port", type=int, metavar="PORT", help="ssh port (remote.port)")
+    remote.add_argument("-i", "--identity", metavar="FILE", help="ssh private key (remote.identity_file)")
+    remote.add_argument("--ssh-option", action="append", default=[], metavar="KEY=VALUE",
+                        help="extra ssh -o option, repeatable (added before remote.ssh_options)")
+    remote.add_argument("--local", action="store_true", help="ignore the plan's remote target and run locally")
 
 
 def build_parser():
@@ -93,9 +102,26 @@ def _prepare(args, console):
         if not NAME_RE.match(key):
             raise ConfigError("invalid variable name %r in [vars]" % key)
     variables.update(cfg.vars)
-    variables.update(parse_cli_vars(args.var))
+    cli_vars = parse_cli_vars(args.var)
+    variables.update(cli_vars)
+    remote = render_remote(resolve_remote(plan["remote"], args), variables)
+    plan["remote"] = remote
+    if remote:
+        explicit = set(plan["vars"]) | set(cfg.vars) | set(cli_vars)
+        # {{host}} and {{fqdn}} name the machine the commands run on; {{runner_host}} stays local.
+        for name in ("host", "fqdn"):
+            if name not in explicit:
+                variables[name] = remote["host"]
     check_variables(plan, variables)
     return cfg, plan, variables
+
+
+def _target(plan):
+    remote = plan.get("remote")
+    if not remote:
+        return ""
+    target = "%s@%s" % (remote["user"], remote["host"]) if remote.get("user") else remote["host"]
+    return " via ssh %s%s" % (target, (":%s" % remote["port"]) if remote.get("port") else "")
 
 
 def _compile(patterns):
@@ -113,8 +139,9 @@ def cmd_validate(args, console):
     cmds = plan["commands"]
     dangerous = sum(1 for c in cmds if c["dangerous"])
     captures = [c["capture"] for c in cmds if c["capture"]]
-    console.write("OK: %s — %d command(s), %d dangerous%s" % (
-        plan["name"], len(cmds), dangerous, (", captures: " + ", ".join(captures)) if captures else ""), force=True)
+    console.write("OK: %s — %d command(s), %d dangerous%s%s" % (
+        plan["name"], len(cmds), dangerous, (", captures: " + ", ".join(captures)) if captures else "",
+        _target(plan)), force=True)
     if cfg.files:
         console.write("config: " + ", ".join(cfg.files), force=True)
     return 0
@@ -125,8 +152,8 @@ def _dry_run(plan, variables, console, opts, patterns):
     for c in plan["commands"]:
         if c["capture"]:
             placeholders.setdefault(c["capture"], "{{%s}}" % c["capture"])
-    console.write(console.paint("DRY RUN: %s — %d command(s) on %s" % (
-        plan["name"], len(plan["commands"]), variables.get("host")), "36;1"), force=True)
+    console.write(console.paint("DRY RUN: %s — %d command(s) on %s%s" % (
+        plan["name"], len(plan["commands"]), variables.get("host"), _target(plan)), "36;1"), force=True)
     ids = [c["id"] for c in plan["commands"]]
     start = ids.index(opts.start_from) if opts.start_from else 0
     for index, c in enumerate(plan["commands"]):

@@ -26,6 +26,10 @@ def render_report(data, fmt="text", lines=20, show_all=False):
     head = [
         ("Plan", data.get("plan_name")),
         ("Host", "%s (%s, kernel %s)" % (data.get("host"), data.get("os"), data.get("kernel"))),
+    ]
+    if data.get("remote"):
+        head.append(("Via", "ssh %s from %s" % (data["remote"].get("target"), (data.get("runner") or {}).get("host"))))
+    head += [
         ("Started", data.get("started")),
         ("Duration", "%ss" % data.get("duration_s")),
         ("Summary", "%s of %s commands" % (counts, summary.get("total"))),

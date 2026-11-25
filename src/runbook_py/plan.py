@@ -16,7 +16,8 @@ DEFAULT_KEYS = {
     "timeout", "stop_on_error", "expect_rc", "shell", "cwd", "env", "dangerous",
     "retries", "retry_delay", "stream",
 }
-TOP_KEYS = {"$schema", "schema_version", "name", "description", "defaults", "vars", "redact", "requires", "commands"}
+TOP_KEYS = {"$schema", "schema_version", "name", "description", "defaults", "vars", "redact", "requires", "remote",
+            "commands"}
 REQUIRES_KEYS = {"root", "os", "commands"}
 
 VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
@@ -49,6 +50,7 @@ def builtin_vars(plan_name):
         "time": now.strftime("%H%M%S"),
         "timestamp": now.strftime("%Y%m%d-%H%M%S"),
         "plan_name": plan_name,
+        "runner_host": socket.gethostname(),
     }
 
 
@@ -202,6 +204,9 @@ def normalize_plan(data, default_name="runbook"):
                 raise PlanError("requires.%s must be a string or a list of strings" % key)
             requires[key] = val
 
+    from .remote import validate_remote  # late import: remote.py imports this module
+    remote = validate_remote(data.get("remote"))
+
     seen = []
     captures = set()
     cmds = []
@@ -275,6 +280,7 @@ def normalize_plan(data, default_name="runbook"):
         "vars": {k: str(v) for k, v in plan_vars.items()},
         "redact": redact,
         "requires": requires,
+        "remote": remote,
         "commands": cmds,
     }
 

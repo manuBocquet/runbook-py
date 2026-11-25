@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Remote execution over SSH: a plan-level `"remote"` block (`host`, `user`, `port`, `identity_file`,
+  `ssh_options`, `shell`, `connect_timeout`) and the `--remote [USER@]HOST`, `--port`, `-i/--identity`,
+  `--ssh-option`, `--local` options. Python is not needed on the target: each command is sent as a
+  POSIX sh script on the standard input of `ssh … exec /bin/sh -s`, so tcsh/csh login shells (pfSense,
+  FreeBSD) are bypassed. One multiplexed connection per run, `BatchMode=yes`, remote `timeout` backstop,
+  rc 255 reported as an ssh `error`, `requires` checked on the target, `remote` and `runner` blocks in the report.
+- New built-in variable `{{runner_host}}`; with a remote target `{{host}}` and `{{fqdn}}` name the remote host.
+- `.runbook.ini`: new `ssh` key (ssh client path).
+- Example: `examples/remote-pfsense-check.json`.
+
 ## 1.0.3 — 2026-11-19
 
 - Tests: runbook subprocesses run without a controlling terminal, so `make test` from a terminal no longer waits at a confirmation prompt.

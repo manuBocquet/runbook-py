@@ -29,6 +29,9 @@ $ runbook hello.json
   nothing hangs on a prompt; every command has a timeout that kills its whole process group.
 - **Complete, honest report**: exit codes, both streams, durations, the host, the OS, the plan's
   SHA-256. It is rewritten after every command, so even a Ctrl-C leaves a usable partial report.
+- **Remote targets over SSH**: with a `"remote"` block (or `--remote`), the commands run on another
+  host through `ssh`. Python is only needed where `runbook` runs: firewalls (pfSense, OPNsense),
+  appliances and minimal hosts only need `sshd` and `/bin/sh`.
 - **Built for review**: secrets masked by regex, ANSI codes and progress bars cleaned up, huge outputs
   kept as head + tail.
 
@@ -89,7 +92,7 @@ runbook report plan_web01_20261119-091500.result.json
 
 Every field except `id`, `cmd`, `description`, `only_if`, `skip_if`, `capture` and `stdin` can be set
 once in `"defaults"`. Plan-level keys: `name`, `description`, `defaults`, `vars`, `redact`,
-`requires` (`root`, `os`, `commands`), `commands`. The full JSON Schema: `runbook schema`, also in
+`requires` (`root`, `os`, `commands`), `remote`, `commands`. The full JSON Schema: `runbook schema`, also in
 [`schema/runbook-plan.schema.json`](schema/runbook-plan.schema.json).
 
 ### Statuses
@@ -101,7 +104,7 @@ variable), `skipped` (with a `reason`), `declined` (answered *no* at the confirm
 
 `{{name}}` is replaced in `cmd`, `cwd`, `env`, `skip_if` and `stdin`. Sources, lowest priority first:
 
-1. built-ins: `host`, `fqdn`, `user`, `date` (YYYYMMDD), `time`, `timestamp`, `plan_name`
+1. built-ins: `host`, `fqdn`, `user`, `date` (YYYYMMDD), `time`, `timestamp`, `plan_name`, `runner_host` (with a remote target, `host` and `fqdn` name the remote host)
 2. the plan's `"vars"`
 3. `[vars]` in `.runbook.ini`: host-specific values, so one plan serves many servers
 4. `--var NAME=VALUE`
@@ -136,6 +139,61 @@ command line and asks `Run? [y/N/a/q]`: **y** runs it, **N** (or Enter) skips it
 for every command; `-y` / `--confirm none` never asks. Without a terminal, dangerous commands are
 declined, never run silently.
 
+## Remote execution over SSH
+
+Add a `"remote"` block and every command, `skip_if` test and `requires` check runs on that host
+through `ssh`, while the plan, the confirmations and the `.result.json` stay on the machine where you
+run `runbook`. Python is not needed on the target.
+
+```json
+{
+  "name": "pfsense-check",
+  "remote": {
+    "host": "{{fw_host}}",
+    "user": "admin",
+    "port": 22,
+    "identity_file": "~/.ssh/id_ed25519_runbook",
+    "ssh_options": ["StrictHostKeyChecking=yes"],
+    "shell": "/bin/sh",
+    "connect_timeout": 10
+  },
+  "vars": { "fw_host": "192.168.1.1" },
+  "commands": [ { "id": "version", "cmd": "cat /etc/version" } ]
+}
+```
+
+Only `host` is required. The same plan can target another host, or run locally, from the command line:
+
+```bash
+runbook plan.json --remote admin@fw2.example --port 2222 -i ~/.ssh/id_fw --ssh-option ProxyJump=bastion
+runbook plan.json --local                    # ignore the plan's remote block
+runbook plan.json --var fw_host=10.0.0.1     # variables work in every remote field
+```
+
+How it works:
+
+- Each command becomes a small POSIX `sh` script written on the standard input of
+  `ssh <target> exec /bin/sh -s`. The remote login shell only parses that fixed line, so a tcsh or
+  csh login shell (pfSense, FreeBSD root) or a menu shell never misreads `2>/dev/null`, `[x]`, `!` or quotes.
+  `remote.shell` picks the shell that runs the commands (`/bin/sh` by default; `/bin/bash` where available).
+- Commands behave as locally: `env` and captures are exported, `cwd` is applied, stdin is `/dev/null`
+  unless `stdin` is set (sent byte for byte), argv commands (`"shell": false`) are quoted for you.
+- One SSH connection is shared by the whole plan (`ControlMaster`, private socket directory, closed at
+  the end). ssh runs with `BatchMode=yes`: no password or host-key prompt can block a run, so use a
+  key and a host already in `known_hosts`.
+- On a timeout the local ssh is killed, and the remote command is also wrapped in `timeout` (when the
+  target has it) a few seconds longer, so nothing is left running there.
+- Exit code 255 is ssh's own error code (connection refused, authentication, host key): the command
+  ends `error` with ssh's message, unless 255 is in its `expect_rc`. `retries` apply.
+- Before the first command, runbook connects once and reads the target's uid, OS, hostname and
+  missing `requires.commands`; if the host cannot be reached, nothing runs (exit code 3).
+- `{{host}}` and `{{fqdn}}` name the remote host; `{{runner_host}}` is the machine running runbook.
+  The report gains `remote` (target, port, key, shell, options) and `runner` blocks, and its `host`,
+  `os`, `kernel` and `uid` describe the target.
+- `ssh_options` and `--ssh-option` are passed as `-o` before runbook's own options, so they win
+  (for ssh the first value of an option is used), e.g. `ControlMaster=no` or `ProxyJump=bastion`.
+- The ssh client is `ssh` from `PATH`, or `ssh = /path/to/ssh` in `.runbook.ini`.
+
 ## Configuration: `.runbook.ini`
 
 Read in this order, later files overriding earlier ones: `/etc/runbook.ini`, `~/.runbook.ini`,
@@ -151,6 +209,7 @@ timeout = 60
 stream = auto             ; live output: auto | true | false
 color = auto              ; auto | always | never (NO_COLOR honoured)
 strip_ansi = true
+ssh = ssh                 ; ssh client for remote targets
 redact =
     (?i)(password|passwd|secret|token)\s*[:=]\s*\S+
 

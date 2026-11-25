@@ -26,7 +26,9 @@ Write a runbook-py plan (JSON) that I will run with `runbook plan.json`; I will 
 the .result.json file it produces.
 
 Rules for plans:
-- Top level: "name", "description", optional "defaults", "vars", "redact", "requires", and "commands".
+- Top level: "name", "description", optional "defaults", "vars", "redact", "requires", "remote", and "commands".
+- For a host without Python (firewall, appliance), add "remote": {"host", "user", "identity_file"}
+  and I run the plan from another machine; commands then run with /bin/sh on that host, not its login shell.
 - Each command: "id" (short, unique), "cmd", and when useful "description", "timeout",
   "stop_on_error", "expect_rc", "only_if", "skip_if", "capture", "retries", "env", "cwd", "stdin".
 - Mark "dangerous": true on every command that changes the system (writes files, installs,

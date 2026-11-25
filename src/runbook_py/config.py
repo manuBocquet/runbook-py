@@ -31,6 +31,7 @@ DEFAULTS = {
     "strip_ansi": True,
     "lock_file": None,    # None = default_lock_file(); "" disables locking
     "redact": [],
+    "ssh": "ssh",         # ssh client used for plans with a "remote" target
 }
 
 SEARCH_PATHS = ("/etc/runbook.ini", "~/.runbook.ini", "./.runbook.ini")
@@ -158,6 +159,8 @@ color = auto
 strip_ansi = true
 # Prevents two runs at once; empty disables locking
 # lock_file = /run/lock/runbook.lock
+# ssh client used when a plan has a "remote" target (or with --remote)
+ssh = ssh
 # Regexes masked as [REDACTED] in the report, one per line
 redact =
     (?i)(password|passwd|secret|token)\\s*[:=]\\s*\\S+

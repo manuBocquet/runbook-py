@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/manuBocquet/runbook-py/main/schema/runbook-plan.schema.json",
+  "name": "pfsense-check",
+  "description": "Read-only checks of a pfSense firewall, run over SSH from a machine that has runbook-py (pfSense has no Python; its root shell is tcsh, but commands run with /bin/sh).",
+  "remote": {
+    "host": "{{fw_host}}",
+    "user": "admin",
+    "identity_file": "~/.ssh/id_ed25519_runbook",
+    "ssh_options": ["StrictHostKeyChecking=yes"],
+    "shell": "/bin/sh"
+  },
+  "vars": { "fw_host": "192.168.1.1" },
+  "defaults": { "stop_on_error": false },
+  "requires": { "commands": ["php", "pkg"] },
+  "commands": [
+    { "id": "version", "cmd": "cat /etc/version", "capture": "fw_version", "stop_on_error": true },
+    { "id": "packages", "cmd": "pkg info -x pfSense-pkg", "expect_rc": [0, 1] },
+    { "id": "wan_if", "cmd": "php -r 'require_once(\"config.inc\"); require_once(\"interfaces.inc\"); echo get_real_interface(\"wan\");'", "capture": "wan_if" },
+    { "id": "wan_ips", "cmd": "ifconfig {{wan_if}} | grep 'inet '", "only_if": "wan_if" },
+    { "id": "default_route", "cmd": "netstat -rn -f inet | grep '^default'" },
+    { "id": "gateway_monitor", "cmd": "pgrep -fl dpinger || echo 'dpinger not running'" },
+    { "id": "disk", "cmd": "df -h /" }
+  ]
+}

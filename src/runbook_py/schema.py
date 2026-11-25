@@ -61,7 +61,8 @@ PLAN_SCHEMA = {
                      "description": "Default values for every command."},
         "vars": {"type": "object", "propertyNames": _VAR, "additionalProperties": {"type": ["string", "number"]},
                  "description": "Variables used as {{name}}. Overridden by [vars] in .runbook.ini, then by --var NAME=VALUE. "
-                                "Built-ins: host, fqdn, user, date, time, timestamp, plan_name."},
+                                "Built-ins: host, fqdn, user, date, time, timestamp, plan_name, runner_host "
+                                "(with a remote target, host and fqdn name the remote host)."},
         "redact": {"type": "array", "items": {"type": "string"},
                    "description": "Regexes masked as [REDACTED] in the report (stdout, stderr, commands, variables)."},
         "requires": {"type": "object", "additionalProperties": False, "properties": {
@@ -71,6 +72,19 @@ PLAN_SCHEMA = {
             "commands": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
                          "description": "Binaries that must be in PATH."},
         }, "description": "Checked before anything runs; on failure nothing is executed (exit code 3)."},
+        "remote": {"type": "object", "additionalProperties": False, "required": ["host"], "properties": {
+            "host": {"type": "string", "minLength": 1, "description": "Target host name or address. {{variables}} allowed."},
+            "user": {"type": "string", "description": "SSH user (default: the ssh client's)."},
+            "port": {"type": ["integer", "string"], "description": "SSH port (default 22)."},
+            "identity_file": {"type": "string", "description": "Private key; ~ is expanded on the machine running runbook."},
+            "ssh_options": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
+                            "description": "Extra ssh -o options such as \"StrictHostKeyChecking=yes\"; they take precedence over runbook's own."},
+            "shell": {"type": "string", "default": "/bin/sh",
+                      "description": "POSIX shell that runs the commands on the target, whatever the user's login shell is."},
+            "connect_timeout": {"type": "number", "exclusiveMinimum": 0, "default": 10,
+                                "description": "Seconds allowed to open the SSH connection."},
+        }, "description": "Run every command on this host through ssh (python is not needed there). "
+                          "Overridden by --remote, --port, --identity, --ssh-option; ignored with --local."},
         "commands": {"type": "array", "minItems": 1, "items": {"oneOf": [{"type": "string"}, _COMMAND]}},
     },
 }

@@ -13,6 +13,7 @@ import time
 
 from . import SCHEMA_VERSION, __version__
 from .plan import UndefinedVariable, render
+from .remote import SSH_ERROR_RC, Remote, ssh_error_message
 from .util import OutputBuffer, now_iso, redact, sanitize, slug, write_json_atomic
 
 OK, FAILED, TIMEOUT, ERROR = "ok", "failed", "timeout", "error"
@@ -44,6 +45,20 @@ def find_shell(preferred=""):
         if candidate and os.access(candidate, os.X_OK):
             return candidate
     return None
+
+
+def check_remote_requirements(requires, facts):
+    problems = []
+    if requires.get("root") and facts.get("uid") != "0":
+        problems.append("must run as root on the remote host (uid %s)" % facts.get("uid", "?"))
+    wanted = [x.lower() for x in requires.get("os", [])]
+    if wanted:
+        ids = set(facts.get("os_ids", "").lower().split())
+        if not ids & set(wanted):
+            problems.append("remote OS %r is not one of: %s" % (facts.get("os", "?"), ", ".join(wanted)))
+    for binary in facts.get("missing", []):
+        problems.append("command not found on the remote host: %s" % binary)
+    return problems
 
 
 def check_requirements(requires):
@@ -131,6 +146,8 @@ class Runner(object):
         self.max_output = cfg["max_output"] if options.max_output is None else options.max_output
         self.strip_ansi = cfg["strip_ansi"]
         self.shell = find_shell(cfg["shell"])
+        self.remote = Remote(plan["remote"], cfg["ssh"]) if plan.get("remote") else None
+        self.facts = {}
         stream = options.stream or cfg["stream"]
         if stream == "auto":
             self.stream = hasattr(sys.stderr, "isatty") and sys.stderr.isatty() and not options.quiet
@@ -155,6 +172,30 @@ class Runner(object):
         })
         env.update(self.exports)
         return env
+
+    def _remote_env(self, env_extra):
+        env = {"RUNBOOK": "1", "RUNBOOK_PLAN": self.plan["name"], "RUNBOOK_HOST": self.vars.get("host", "")}
+        env.update(self.exports)
+        env.update(env_extra)
+        return env
+
+    def _command(self, c, cmd, env_extra, cwd, stdin_data, timeout):
+        """argv, environment, cwd and stdin of the process to start, locally or through ssh."""
+        if self.remote:
+            script = self.remote.script(cmd, self._remote_env(env_extra), cwd, stdin_data, timeout)
+            return self.remote.argv(), os.environ.copy(), None, script
+        env = self._base_env()
+        env.update(env_extra)
+        argv = [self.shell, "-c", cmd] if c["shell"] else cmd
+        return argv, env, cwd, stdin_data
+
+    def _ssh_failure(self, c, result):
+        """rc 255 is ssh's own error code (connection, authentication, host key)."""
+        if (self.remote and result.get("status") == FAILED and result.get("rc") == SSH_ERROR_RC
+                and SSH_ERROR_RC not in c["expect_rc"]):
+            result["status"] = ERROR
+            result["error"] = "ssh failed (rc 255): %s" % self._r(ssh_error_message(result.get("stderr")))
+        return result
 
     def _write(self):
         if self.report is None:
@@ -292,7 +333,7 @@ class Runner(object):
             "stderr_bytes": err.total,
             "truncated": truncated or err.truncated,
         })
-        return result, full_stdout
+        return self._ssh_failure(c, result), full_stdout
 
     # ------------------------------------------------------------------ main loop
     def _confirm(self, c, label, shown_cmd):
@@ -343,6 +384,13 @@ class Runner(object):
             uid = os.geteuid()
         except AttributeError:
             uid = None
+        try:
+            return self._run(out_path, plan, cmds, info, uid)
+        finally:
+            if self.remote:
+                self.remote.close()
+
+    def _run(self, out_path, plan, cmds, info, uid):
         self.report = {
             "runbook_version": __version__,
             "schema_version": SCHEMA_VERSION,
@@ -377,7 +425,12 @@ class Runner(object):
             "results": [],
         }
 
-        problems = check_requirements(plan["requires"])
+        if self.remote:
+            self.report["runner"] = {"host": socket.gethostname(), "os": self.report["os"], "uid": uid}
+            self.report["remote"] = self.remote.describe()
+            problems = self._connect(plan["requires"])
+        else:
+            problems = check_requirements(plan["requires"])
         if problems:
             self.report["aborted"] = "requirements not met: " + "; ".join(problems)
             for c in cmds:
@@ -387,11 +440,14 @@ class Runner(object):
                 self.console.error(problem)
             return EXIT_REQUIREMENTS
 
-        if not self.shell and any(c["shell"] for c in cmds):
+        if not self.remote and not self.shell and any(c["shell"] for c in cmds):
             self.console.error("no usable shell found (/bin/bash or /bin/sh)")
             return EXIT_INVALID
 
-        self.console.write(self.console.paint("▶ %s — %d command(s) on %s" % (plan["name"], len(cmds), self.vars.get("host")), "36;1"))
+        where = self.vars.get("host")
+        if self.remote:
+            where = "%s (ssh %s)" % (self.facts.get("hostname") or where, self.remote.target)
+        self.console.write(self.console.paint("▶ %s — %d command(s) on %s" % (plan["name"], len(cmds), where), "36;1"))
         stop_reason = None
         try:
             for index, c in enumerate(cmds, 1):
@@ -423,6 +479,28 @@ class Runner(object):
         parts = ", ".join("%s=%d" % (k, v) for k, v in sorted(summary.items()) if k != "total")
         self.console.write(self.console.paint("■ Done in %.1fs — %s" % (self.report["duration_s"], parts), "31;1" if bad else "32;1"))
         return EXIT_FAILED if bad else EXIT_OK
+
+    def _connect(self, requires):
+        """Opens the shared ssh connection and reads the target's facts (uid, OS, missing binaries)."""
+        if not self.remote.available():
+            return ["ssh client not found: %s (set [runbook] ssh in .runbook.ini)" % self.remote.ssh_binary]
+        self.remote.open()
+        timeout = self.remote.connect_timeout + 30
+        result, buffers = self._spawn(self.remote.argv(), os.environ.copy(), None,
+                                      Remote.probe_script(requires.get("commands", [])), timeout, False)
+        stdout, stderr = self._text(buffers["stdout"]), self._text(buffers["stderr"])
+        if result.get("status") == TIMEOUT:
+            return ["ssh %s: no answer after %ss" % (self.remote.target, timeout)]
+        if result.get("rc") != 0:
+            return ["ssh %s failed (rc %s): %s" % (self.remote.target, result.get("rc"),
+                                                    self._r(ssh_error_message(stderr)))]
+        self.facts = Remote.parse_probe(stdout)
+        self.report["remote"].update({"hostname": self.facts.get("hostname"), "uid": self.facts.get("uid")})
+        self.report.update({"host": self.facts.get("hostname") or self.report["host"],
+                            "fqdn": self.facts.get("hostname") or self.report["fqdn"],
+                            "os": self.facts.get("os"), "kernel": self.facts.get("kernel"),
+                            "uid": int(self.facts["uid"]) if self.facts.get("uid", "").isdigit() else None})
+        return check_remote_requirements(requires, self.facts)
 
     def _effective_ok(self, cid):
         return self.statuses.get(cid) == OK or cid in self.resumed
@@ -492,14 +570,13 @@ class Runner(object):
             entry["cmd_template"] = self._r(c["cmd"] if isinstance(c["cmd"], str) else " ".join(c["cmd"]))
         timeout = c["timeout"] if c["_explicit_timeout"] else self.cfg["timeout"]
         entry.update({"timeout": timeout, "expect_rc": c["expect_rc"], "stop_on_error": c["stop_on_error"]})
-        env = self._base_env()
-        env.update(env_extra)
         if c["capture"]:
             entry["capture"] = c["capture"]
 
         if skip_if:
-            argv = [self.shell, "-c", skip_if]
-            probe, _ = self._spawn(argv, env, cwd, None, timeout or 60, False)
+            argv, env, run_cwd, probe_stdin = self._command(dict(c, shell=True), skip_if, env_extra, cwd, None,
+                                                            timeout or 60)
+            probe, _ = self._spawn(argv, env, run_cwd, probe_stdin, timeout or 60, False)
             entry["skip_if"] = {"cmd": self._r(skip_if), "rc": probe.get("rc")}
             if probe.get("rc") == 0 and probe.get("status") != TIMEOUT:
                 con.write(con.paint("%s skipped: skip_if succeeded" % label, "90"))
@@ -516,14 +593,17 @@ class Runner(object):
         if answer == "n":
             return done(DECLINED, reason="answered no")
 
-        argv = [self.shell, "-c", cmd] if c["shell"] else cmd
+        try:
+            argv, env, run_cwd, run_stdin = self._command(c, cmd, env_extra, cwd, stdin_data, timeout)
+        except ValueError as exc:
+            return done(ERROR, error=str(exc))
         live = self.stream if c["stream"] is None else c["stream"]
         con.write("%s $ %s" % (con.paint(label, "1"), self._r(shown)))
         attempts = 0
         entry["started"] = now_iso()
         while True:
             attempts += 1
-            result, raw_stdout = self._run_once(c, argv, env, cwd, stdin_data, timeout, live)
+            result, raw_stdout = self._run_once(c, argv, env, run_cwd, run_stdin, timeout, live)
             if result["status"] not in BAD or attempts > c["retries"]:
                 break
             con.write(con.paint("    ↻ %s, retry %d/%d in %ss" % (result["status"], attempts, c["retries"], c["retry_delay"]), "33"))
