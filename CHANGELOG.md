@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add remote execution over SSH
+
 ## 1.1.0 — 2026-11-25
 
 - Remote execution over SSH: a plan-level `"remote"` block (`host`, `user`, `port`, `identity_file`,
