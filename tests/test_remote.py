@@ -161,7 +161,8 @@ def test_remote_plan_validation():
 
 def test_remote_script_keeps_stdin_byte_for_byte():
     remote = Remote({"host": "h"})
-    for data in ["", "a", "a\n", "a\n\n", "line 'q' \"d\" $HOME `x` \\\n", "RUNBOOK_STDIN_\nx"]:
+    for data in ["", "a", "a\n", "a\n\n", "line 'q' \"d\" $HOME `x` \\\n", "RUNBOOK_STDIN_\nx",
+                 "a \\\nb\n", "ends with \\", "( ) $( ) ) %s %b -n '' \\n\r\n", "é ü ✓\n\n\n"]:
         script = remote.script("cat", stdin_data=data)
         out = subprocess.run(["/bin/sh", "-s"], input=script.encode(), stdout=subprocess.PIPE).stdout.decode()
         assert out == data, (data, out)

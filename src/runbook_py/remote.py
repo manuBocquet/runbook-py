@@ -6,7 +6,6 @@ fixed line, so tcsh, csh or menu shells (pfSense, FreeBSD root) cannot misread t
 Python is only needed on the machine that runs runbook, not on the target.
 """
 
-import binascii
 import math
 import os
 import shlex
@@ -198,17 +197,11 @@ class Remote(object):
         if stdin_data is None:
             lines.append("runbook_exec </dev/null")
         else:
-            # A here-document keeps the data byte for byte; the trailing "x" protects
-            # final newlines from being stripped by the command substitution.
-            delim = "RUNBOOK_STDIN_%s" % binascii.hexlify(os.urandom(8)).decode("ascii")
-            while delim in stdin_data:
-                delim = "RUNBOOK_STDIN_%s" % binascii.hexlify(os.urandom(8)).decode("ascii")
+            # A single-quoted string keeps the data byte for byte, final newlines included.
+            # No here-document inside $(...): bash 3.2 (macOS /bin/sh) treats a backslash-newline
+            # there as a line continuation even when the delimiter is quoted.
             lines += [
-                "RUNBOOK_STDIN=$(cat <<'%s'" % delim,
-                stdin_data + "x",
-                delim,
-                ")",
-                "RUNBOOK_STDIN=${RUNBOOK_STDIN%x}",
+                "RUNBOOK_STDIN=%s" % _q(stdin_data),
                 "printf '%s' \"$RUNBOOK_STDIN\" | runbook_exec",
             ]
         lines.append("exit $?")
