@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1 — 2026-11-27
+
 - CI: Python 3.8/3.9 tested on ubuntu-24.04 (gone from ubuntu-latest), actions moved to Node 24 versions,
   10-minute job timeouts.
 
