@@ -1,7 +1,8 @@
 name: Publish to PyPI
 
-# Pushing a tag vX.Y.Z publishes (make bump-patch && make release). PyPI side: add a "trusted publisher" for this
-# repository, workflow publish.yml, environment pypi (https://docs.pypi.org/trusted-publishers/).
+# Pushing a tag vX.Y.Z publishes (make bump-patch && make release), then creates the GitHub Release
+# (github-release.yml). PyPI side: add a "trusted publisher" for this repository, workflow publish.yml,
+# environment pypi (https://docs.pypi.org/trusted-publishers/).
 on:
   push:
     tags: ["v*"]
@@ -40,3 +41,11 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: publish
+    permissions:
+      contents: write
+    uses: ./.github/workflows/github-release.yml
+    with:
+      tag: ${{ github.ref_name }}

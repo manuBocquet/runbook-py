@@ -1,0 +1,50 @@
+name: GitHub Release
+
+# Creates (or updates) the GitHub Release of a version already on PyPI: notes = its CHANGELOG.md section
+# read from main (fix the CHANGELOG and re-run to correct them), assets = the exact files published on PyPI.
+# Called by publish.yml after each publication; run it by hand (Actions > GitHub Release > Run workflow)
+# for an older tag.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag, e.g. v1.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Check the tag
+        run: |
+          echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "invalid tag: $TAG"; exit 1; }
+          git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null || { echo "no tag $TAG"; exit 1; }
+      - name: Notes from CHANGELOG.md
+        run: python3 scripts/release_notes.py "$TAG" > notes.md && cat notes.md
+      - name: Files published on PyPI
+        run: python3 scripts/pypi_files.py "$TAG" dist
+      - name: Create or update the release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file notes.md
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --verify-tag --title "$TAG" --notes-file notes.md
+          fi

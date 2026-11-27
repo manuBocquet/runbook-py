@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+- Remote stdin is sent as a single-quoted string: a here-document inside $(...) lost a trailing
+  backslash-newline under bash 3.2 (macOS /bin/sh).
+- GitHub Releases are created automatically after each PyPI publication (notes from this file, files from PyPI).
+
 ## 1.1.1 — 2026-11-27
 
+- `{{fqdn}}`: the reverse DNS lookup is capped at 2 s (falls back to the short host name), so a slow or
+  broken resolver no longer stalls every run (it made the macOS CI job time out).
 - CI: Python 3.8/3.9 tested on ubuntu-24.04 (gone from ubuntu-latest), actions moved to Node 24 versions,
   10-minute job timeouts.
 
