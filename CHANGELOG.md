@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.2 — 2026-11-27
+
 - Remote stdin is sent as a single-quoted string: a here-document inside $(...) lost a trailing
   backslash-newline under bash 3.2 (macOS /bin/sh).
 - GitHub Releases are created automatically after each PyPI publication (notes from this file, files from PyPI).
