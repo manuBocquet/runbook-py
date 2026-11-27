@@ -4,9 +4,39 @@ import datetime
 import json
 import os
 import re
+import socket
 import sys
+import threading
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][A-Za-z0-9]|\x1b[=>]")
+
+FQDN_TIMEOUT = 2.0
+_fqdn_cache = []
+
+
+def fqdn(timeout=FQDN_TIMEOUT):
+    """socket.getfqdn() with a time limit, computed once per process.
+
+    getfqdn() does a reverse DNS lookup that can hang for a long time when the resolver is
+    slow or broken (GitHub macOS runners, a server whose DNS is down). It runs in a daemon
+    thread; past the limit the short host name is used instead.
+    """
+    if _fqdn_cache:
+        return _fqdn_cache[0]
+    box = []
+
+    def lookup():
+        try:
+            box.append(socket.getfqdn())
+        except Exception:
+            pass
+
+    worker = threading.Thread(target=lookup, name="runbook-fqdn")
+    worker.daemon = True
+    worker.start()
+    worker.join(timeout)
+    _fqdn_cache.append(box[0] if box and box[0] else socket.gethostname())
+    return _fqdn_cache[0]
 
 
 def now_iso():

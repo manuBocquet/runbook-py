@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Add remote execution over SSH
+- `{{fqdn}}`: the reverse DNS lookup is capped at 2 s (falls back to the short host name), so a slow or
+  broken resolver no longer stalls every run (it made the macOS CI job time out).
+- CI: Python 3.8/3.9 tested on ubuntu-24.04 (gone from ubuntu-latest), actions moved to Node 24 versions,
+  10-minute job timeouts.
 
 ## 1.1.0 — 2026-11-25
 

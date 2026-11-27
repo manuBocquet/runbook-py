@@ -8,6 +8,8 @@ import os
 import re
 import socket
 
+from .util import fqdn
+
 COMMAND_KEYS = {
     "id", "cmd", "description", "timeout", "stop_on_error", "expect_rc", "shell", "cwd", "env",
     "dangerous", "only_if", "skip_if", "capture", "retries", "retry_delay", "stdin", "stream",
@@ -44,7 +46,7 @@ def builtin_vars(plan_name):
         user = str(os.getuid())
     return {
         "host": socket.gethostname(),
-        "fqdn": socket.getfqdn(),
+        "fqdn": fqdn(),
         "user": user,
         "date": now.strftime("%Y%m%d"),
         "time": now.strftime("%H%M%S"),

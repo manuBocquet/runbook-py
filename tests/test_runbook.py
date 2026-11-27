@@ -5,6 +5,7 @@ from conftest import by_id
 
 from runbook_py.plan import PlanError, normalize_plan
 from runbook_py.schema import PLAN_SCHEMA
+from runbook_py import util
 from runbook_py.util import OutputBuffer, sanitize
 
 
@@ -283,3 +284,17 @@ def test_published_schema_file_is_up_to_date():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(root, "schema", "runbook-plan.schema.json")) as handle:
         assert json.load(handle) == json.loads(json.dumps(PLAN_SCHEMA)), "run scripts/gen_schema.py"
+
+
+def test_fqdn_falls_back_to_hostname_when_reverse_dns_hangs(monkeypatch):
+    # GitHub macOS runners: the reverse lookup behind getfqdn() can hang for minutes.
+    import threading
+    release = threading.Event()
+    monkeypatch.setattr(util.socket, "getfqdn", lambda *a: release.wait(30) and "late.example")
+    monkeypatch.setattr(util.socket, "gethostname", lambda: "short")
+    monkeypatch.setattr(util, "_fqdn_cache", [])
+    try:
+        assert util.fqdn(timeout=0.2) == "short"
+        assert util.fqdn() == "short"  # computed once per process
+    finally:
+        release.set()

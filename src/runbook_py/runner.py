@@ -14,7 +14,7 @@ import time
 from . import SCHEMA_VERSION, __version__
 from .plan import UndefinedVariable, render
 from .remote import SSH_ERROR_RC, Remote, ssh_error_message
-from .util import OutputBuffer, now_iso, redact, sanitize, slug, write_json_atomic
+from .util import OutputBuffer, fqdn, now_iso, redact, sanitize, slug, write_json_atomic
 
 OK, FAILED, TIMEOUT, ERROR = "ok", "failed", "timeout", "error"
 SKIPPED, DECLINED = "skipped", "declined"
@@ -399,7 +399,7 @@ class Runner(object):
             "plan_file": plan.get("_path"),
             "plan_sha256": plan.get("_sha256"),
             "host": self.vars.get("host"),
-            "fqdn": socket.getfqdn(),
+            "fqdn": fqdn(),
             "os": info.get("PRETTY_NAME", platform.platform()),
             "kernel": platform.release(),
             "python": platform.python_version(),
